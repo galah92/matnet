@@ -11,7 +11,7 @@ You are then able to use:
 
 ### `GenericMessage` interface
 The `MatNet` namespace exposes a `GenericMessage` type, used as a generic messages interface, which includes:
-```json
+```javascript
 {
     Type: should be either 'PUSH' or 'STORE'
     ID: // some string
@@ -49,5 +49,4 @@ All other `Type`'s are **IGNORED**.
 
 
 ## TODO
-* Add more Documentation for MATLAB side, spcifically about the queues interface and `GenericMessage`'s `Type` field.
 * Add the abillity to `POST` to Rest-based server (ajax).
