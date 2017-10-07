@@ -2,7 +2,6 @@
 An async websocket library for MATLAB using .NET Core framework.  
 I built it as a middleware between a data visualization app which consist of a JavaScript frontend and MATLAB backend.
 
-
 ## MATLAB interface
 To load the library, use `NET.addAssembly('path/to/MatNet.dll');`. This will import the MatNet namespace directly to MATLAB workspace.
 
@@ -11,8 +10,8 @@ You are then able to use:
 * `MatNet.MatNet.Stop();` to stop the websocket server.
 
 ### `GenericMessage` interface
-The `MatNet` namespace exposes a `GenericMessage` type as well, used as a generic messages interface, which includes:
-```
+The `MatNet` namespace exposes a `GenericMessage` type, used as a generic messages interface, which includes:
+```json
 {
     Type: should be either 'PUSH' or 'STORE'
     ID: // some string
@@ -41,6 +40,13 @@ The field value must be a MATLAB matrix or cell array!
 
 * To send a message, do `MatNet.MatNet.UpdatesQueue.Enqueue(msg);`
 * To recieve commands, do `msg = MatNet.MatNet.UpdatesQueue.Dequeue();`
+
+### `GenericMessage` Types: The server's store
+The websocket server includes an internal store, which is used to store messages retrieved from the MATLAB. The `Type` field of the `GenericMessage` specify whether to store the message in the server's store, making it available for the clients based on polling-like, technique, or to just send the messages to the clients at once. Possible Types:
+* `'PUSH'`: The message will be pushed to the clients as soon as the server's ready.
+* `'STORE'`: The message will be stored and fetched by each client individially.
+All other `Type`'s are **IGNORED**.
+
 
 ## TODO
 * Add more Documentation for MATLAB side, spcifically about the queues interface and `GenericMessage`'s `Type` field.
