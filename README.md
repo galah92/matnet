@@ -10,6 +10,7 @@ You are then able to use:
 * `MatNet.MatNet.Start();` to start the websocket server on port `1234`.
 * `MatNet.MatNet.Stop();` to stop the websocket server.
 
+### `GenericMessage` interface
 The `MatNet` namespace exposes a `GenericMessage` type as well, used as a generic messages interface, which includes:
 ```
 {
@@ -20,7 +21,7 @@ The `MatNet` namespace exposes a `GenericMessage` type as well, used as a generi
 ```
 
 You can initiate a msg with:
-```
+```matlab
 msg = MatNet.GenericMessage();
 msg.Type = 'PUSH';
 msg.ID = 'myID';
@@ -28,7 +29,7 @@ msg.ID = 'myID';
 Alternatively, you can do `msg = MatNet.GenericMessage('PUSH', 'myID');`
 
 To Add payload, do:
-```
+```matlab
 msg = MatNet.GenericMessage('PUSH', 'myID');
 msg.Set('field1', [10, 20, 30, 40]);
 msg.Set('field2', rand(3));
@@ -36,6 +37,7 @@ msg.Set('field3', {'a', 'b', 'c'});
 x = msg.Get('field1'); % of NET.Object[] class
 y = cellfun(@double, cell(msg.Get('field1'))); % a MATLAB vector
 ```
+The field value must be a MATLAB matrix or cell array!
 
 * To send a message, do `MatNet.MatNet.UpdatesQueue.Enqueue(msg);`
 * To recieve commands, do `msg = MatNet.MatNet.UpdatesQueue.Dequeue();`
