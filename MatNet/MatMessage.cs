@@ -4,18 +4,16 @@ using Newtonsoft.Json.Linq;
 namespace MatNet
 {
 
-    class GenericMessage
+    public class Message
     {
 
-        public string Type;
+        public string Type = string.Empty;
         public string ID;
         public JObject Payload = new JObject();
 
-        public GenericMessage(string type = "", string id = "")
-        {
-            Type = type;
-            ID = id;
-        }
+        public Message(string id = "") => ID = id;
+
+        public string[] GetKeys() => Payload.Properties().Select(p => p.Name).ToArray();
 
         public void Set(string name, object obj) => Payload[name] = JToken.FromObject(obj);
 
@@ -36,8 +34,6 @@ namespace MatNet
                     return ((JValue)token).Value;
             }
         }
-
-        public string[] Keys => Payload.Properties().Select(p => p.Name).ToArray();
 
     }
 

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace MatNet
 {
 
-    internal class WebSocketHTTPListener
+    internal class WebSocketHttpListener
     {
 
         private HttpListener listener = new HttpListener();

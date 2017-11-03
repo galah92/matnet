@@ -1,79 +1,74 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Linq;
 using Newtonsoft.Json;
-
+using System.Reflection;
 
 namespace MatNet
 {
 
-    class MatNet
+    public static class Server
     {
-        public static string Version => "v0.0.1";
-        public static MatQueue<GenericMessage> CommandsQueue;
-        public static MatQueue<GenericMessage> UpdatesQueue;
-        public static int ClientsCount => server.ClientsCount;
 
-        private static ConcurrentDictionary<string, Tuple<string, ConcurrentBag<WebSocket>>> Store;
-        private static readonly WebSocketServer server = new WebSocketServer() { OnRecieveAction = HandleServerOnRecieve };
+        public static string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString();
+
+        private static MatQueue<Message> matQueue;
+        private static ConcurrentDictionary<string, MatSet<WebSocket>> store;
+        private static WebSocketServer server = new WebSocketServer() { OnRecieve = HandleServerRecieve };
+
+        public static int ClientsCount => server.ClientsCount;
 
         public static void Start(string uriString = "http://+:1234/")
         {
             Stop();
-            CommandsQueue = new MatQueue<GenericMessage>();
-            UpdatesQueue = new MatQueue<GenericMessage>() { EnqueueAction = HandleGUIQueue };
-            Store = new ConcurrentDictionary<string, Tuple<string, ConcurrentBag<WebSocket>>>();
+            matQueue = new MatQueue<Message>();
+            store = new ConcurrentDictionary<string, MatSet<WebSocket>>();
             server.Start(uriString);
         }
 
-        public static void Stop() => server.Stop();
-
-        private static void HandleGUIQueue()
+        public static void Stop()
         {
-            GenericMessage msg;
-            if (server.IsListening && UpdatesQueue.TryDequeue(out msg))
-            {
-                string msgJSON = JsonConvert.SerializeObject(msg);
-                switch (msg.Type)
-                {
-                    case "PUSH":
-                        server.Broadcast(msgJSON);
-                        break;
-                    case "STORE":
-                        Tuple<string, ConcurrentBag<WebSocket>> storeItem;
-                        if (Store.TryGetValue(msg.ID, out storeItem))
-                        {  // ID exists in Store
-                            server.Broadcast(msgJSON, storeItem.Item2.AsEnumerable());
-                        }
-                        Store[msg.ID] = new Tuple<string, ConcurrentBag<WebSocket>>(msgJSON, new ConcurrentBag<WebSocket>());
-                        break;
-                }
-            }
+            if (!server.IsListening) { return; }
+            server.Stop();
         }
 
-        private static void HandleServerOnRecieve(WebSocket client, string data)
+        public static void Send(Message msg)
         {
-            GenericMessage msg;
+            if (!server.IsListening) { return; }
+            server.Broadcast(JsonConvert.SerializeObject(msg));
+        }
+
+        public static void Store(Message msg)
+        {
+            if (store.TryGetValue(msg.ID, out MatSet<WebSocket> clients))
+            {  // ID exists in store
+                server.Broadcast(JsonConvert.SerializeObject(msg), clients);
+            }
+            store[msg.ID] = new MatSet<WebSocket>();
+        }
+
+        public static Message Receive() => matQueue.Dequeue();
+
+        private static void HandleServerRecieve(WebSocket client, string data)
+        {
+            Message msg;
             try
             {
-                msg = JsonConvert.DeserializeObject<GenericMessage>(data);
+                msg = JsonConvert.DeserializeObject<Message>(data);
             }
             catch { return; }  // Error in parsing, data is probably corrupt
             switch (msg.Type)
             {
                 case "COMMAND":
-                    CommandsQueue.Enqueue(msg);
+                    matQueue.Enqueue(msg);
                     break;
                 case "QUERY":
-                    Tuple<string, ConcurrentBag<WebSocket>> storeItem;
-                    if (Store.TryGetValue(msg.ID, out storeItem))
-                    {  // data already exist in Store, so add the client to the bag
-                        Store[msg.ID].Item2.Add(client);
+                    if (store.TryGetValue(msg.ID, out MatSet<WebSocket> clients))
+                    {  // ID exists in store, so add the client to the set
+                        store[msg.ID].Add(client);
                     }
                     else
-                    {  // data doesn't exist in Store, so init new bag with the client
-                        Store[msg.ID] = new Tuple<string, ConcurrentBag<WebSocket>>(string.Empty, new ConcurrentBag<WebSocket>() { client });
+                    {  // ID doesn't exists in store, so init new set with the client
+                        store[msg.ID] = new MatSet<WebSocket>() { client };
                     }
                     break;
             }

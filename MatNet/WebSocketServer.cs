@@ -1,13 +1,11 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Net;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.IO;
 
 namespace MatNet
 {
@@ -15,8 +13,8 @@ namespace MatNet
     internal class WebSocketServer
     {
 
-        private WebSocketHTTPListener listener;
-        private ConcurrentBag<WebSocket> clients;
+        private WebSocketHttpListener listener;
+        private MatSet<WebSocket> clients;
         private const int BUFFER_SIZE = 8192;
 
         public bool IsListening => listener == null || listener.IsListening;
@@ -25,8 +23,8 @@ namespace MatNet
         public void Start(string uriString)
         {
             if (listener != null && listener.IsListening) { return; }
-            clients = new ConcurrentBag<WebSocket>();
-            listener = new WebSocketHTTPListener();
+            clients = new MatSet<WebSocket>();
+            listener = new WebSocketHttpListener();
             listener.Prefixes.Add(uriString);
             listener.Start();
             HandleListener();
@@ -46,27 +44,28 @@ namespace MatNet
             {
                 while (listener != null && listener.IsListening)
                 {
-                    HttpListenerContext context = await listener.GetContextAsync();
-                    WebSocket client = (await context.AcceptWebSocketAsync(null)).WebSocket;
-                    clients.Add(client);
-                    await HandleClient(client);
+                    HttpListenerContext listenerContext = await listener.GetContextAsync();
+                    WebSocketContext webSocketContext = await listenerContext.AcceptWebSocketAsync(subProtocol: null);
+                    WebSocket webSocket = webSocketContext.WebSocket;
+                    clients.Add(webSocket);
+                    await HandleClient(webSocket);
                 }
             }
-            catch (HttpListenerException) { }
+            catch (HttpListenerException) { } // Got here probably because StopWSServer() was called
         }
 
         private async Task HandleClient(WebSocket client)
         {
             try
             {
+                ArraySegment<byte> recievedBuffer = new ArraySegment<byte>(new byte[BUFFER_SIZE]);
                 while (listener != null && listener.IsListening && client.State == WebSocketState.Open)
                 {
+                    WebSocketReceiveResult recieveResult;
                     using (var ms = new MemoryStream())
                     {
-                        WebSocketReceiveResult recieveResult;
                         do
                         {
-                            ArraySegment<byte> recievedBuffer = new ArraySegment<byte>(new byte[BUFFER_SIZE]);
                             recieveResult = await client.ReceiveAsync(recievedBuffer, CancellationToken.None);
                             ms.Write(recievedBuffer.Array, recievedBuffer.Offset, recieveResult.Count);
                         }
@@ -80,7 +79,7 @@ namespace MatNet
                                 RemoveClient(client, WebSocketCloseStatus.InvalidMessageType, "Cannot accept binary frame");
                                 break;
                             case WebSocketMessageType.Text:
-                                OnRecieveAction?.Invoke(client, Encoding.ASCII.GetString(ms.ToArray()));
+                                OnRecieve?.Invoke(client, System.Text.Encoding.UTF8.GetString(ms.ToArray()));
                                 break;
                         }
                     }
@@ -92,26 +91,23 @@ namespace MatNet
             }
         }
 
-        public Action<WebSocket, string> OnRecieveAction;
+        public Action<WebSocket, string> OnRecieve;
 
-        public void Broadcast(string message)
-        {
-            Broadcast(message, clients.AsEnumerable());
-        }
+        public void Broadcast(string data) => Broadcast(data, clients);
 
-        public void Broadcast(string message, IEnumerable<WebSocket> clients)
+        public void Broadcast(string data, IEnumerable<WebSocket> clients)
         {
             foreach (var client in clients)
             {
-                Send(client, message);
+                Send(client, data);
             }
         }
 
-        public async void Send(WebSocket client, string message)
+        public async void Send(WebSocket client, string data)
         {
             try
             {
-                ArraySegment<byte> buffer = new ArraySegment<byte>(Encoding.ASCII.GetBytes(message));
+                ArraySegment<byte> buffer = new ArraySegment<byte>(Encoding.ASCII.GetBytes(data));
                 await client.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
             }
             catch (WebSocketException ex)
@@ -127,7 +123,7 @@ namespace MatNet
                 client.CloseAsync(closeStatus, message, CancellationToken.None);
             }
             catch { }
-            clients.TryTake(out client);
+            clients.Remove(client);
         }
 
     }
